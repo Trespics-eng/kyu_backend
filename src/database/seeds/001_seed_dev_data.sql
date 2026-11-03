@@ -1,0 +1,3 @@
+-- 001_seed_dev_data.sql
+-- Seed data disabled: Starting with a completely clean database.
+-- Real users, posts, businesses, issues, and articles will be created live via the app.
