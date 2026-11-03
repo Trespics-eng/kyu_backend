@@ -21,9 +21,9 @@ build/
 .nyc_output/
 
 # Local uploads and temporary files
-uploads/
-tmp/
-temp/
+/uploads/
+/tmp/
+/temp/
 *.local
 
 # Editor and OS files
