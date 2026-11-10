@@ -20,6 +20,20 @@ const schema = z.object({
   EMAIL_FROM_NAME: z.string().default('Kyu-Konnekt'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   SENTRY_DSN: optionalValue(),
+  GEMINI_API_KEY: optionalValue().default(process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_KEY),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+  AI_PROVIDER: z.enum(['auto', 'gemini', 'openai']).default('auto'),
+  OPENAI_API_KEY: optionalValue(),
+  OPENAI_MODEL_SUMMARY: z.string().default('gpt-4o-mini'),
+  OPENAI_MODEL_REASONING: z.string().default('gpt-4o'),
+  ENCRYPTION_SECRET: z.string().default('kyu_konnekt_ai_super_secret_32char_key!'),
+  ADMIN_FRONTEND_URL: z.string().default('http://localhost:5173'),
+  ADMIN_REGISTRATION_KEY: optionalValue(),
+  ADMIN_REGISTRATION_SECRET: optionalValue(),
+  GOOGLE_CLIENT_ID: optionalValue(),
+  GOOGLE_CLIENT_SECRET: optionalValue(),
+  MS_CLIENT_ID: optionalValue(),
+  MS_CLIENT_SECRET: optionalValue(),
 });
 
 const parsed = schema.safeParse(process.env);

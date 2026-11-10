@@ -213,7 +213,9 @@ export async function toggleArticleLike(req, res, next) {
 
     if (existing) {
       await supabase.from('article_likes').delete().eq('article_id', articleId).eq('user_id', userId);
-      await supabase.rpc('decrement_article_likes', { art_id: articleId }).catch(() => null);
+      try {
+        await supabase.rpc('decrement_article_likes', { art_id: articleId });
+      } catch {}
       return sendSuccess(res, { liked: false }, 'Like removed.');
     } else {
       await supabase.from('article_likes').insert({ article_id: articleId, user_id: userId });

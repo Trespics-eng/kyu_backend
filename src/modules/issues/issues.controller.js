@@ -1,5 +1,30 @@
 import { getSupabaseAdmin } from '../../config/supabase.js';
 import { sendSuccess, sendError } from '../../utils/response.js';
+import { issuesIntelligenceAgent } from '../../services/ai/issues.agent.js';
+import { createNotification } from '../../services/notification.service.js';
+
+async function prepareGuidance(issue, persist) {
+  try {
+    return await issuesIntelligenceAgent.analyzeIssue(issue, { persist });
+  } catch {
+    return {
+      issue_classification: issue.category || 'Community issue',
+      affected_location: issue.location,
+      recommended_steps: 'Your report has been received for review. Keep a note of when and where the issue occurred. The community administration team will follow up with routing guidance.',
+      evidence_needed: 'Keep relevant photos, dates, reference or account numbers, and any responses from the responsible authority.',
+      contact_details: {}, confidence_score: 0, is_emergency: false,
+    };
+  }
+}
+
+function guidanceMessage(guidance) {
+  const parts = [guidance.recommended_steps];
+  if (guidance.contact_details?.phone) parts.push(`Contact: ${guidance.contact_details.phone}`);
+  if (guidance.contact_details?.email) parts.push(`Email: ${guidance.contact_details.email}`);
+  if (guidance.official_reporting_link) parts.push(`Official reporting: ${guidance.official_reporting_link}`);
+  if (guidance.evidence_needed) parts.push(`Prepare: ${guidance.evidence_needed}`);
+  return parts.filter(Boolean).join('\n');
+}
 
 export async function getIssues(req, res, next) {
   try {
@@ -8,10 +33,7 @@ export async function getIssues(req, res, next) {
 
     let query = supabase
       .from('issues')
-      .select(`
-        *,
-        reporter:profiles(id, name, initials, color, role)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (category && category !== 'All categories') {
@@ -28,6 +50,13 @@ export async function getIssues(req, res, next) {
 
     const { data: rawIssues, error } = await query;
     if (error) return sendError(res, error.message, 500);
+
+    const reporterIds = [...new Set((rawIssues || []).map((issue) => issue.reporter_id).filter(Boolean))];
+    let reporterById = new Map();
+    if (reporterIds.length) {
+      const { data: reporters } = await supabase.from('profiles').select('id,name,role').in('id', reporterIds);
+      reporterById = new Map((reporters || []).map((reporter) => [reporter.id, reporter]));
+    }
 
     let supportedIds = new Set();
     let followedIds = new Set();
@@ -54,8 +83,8 @@ export async function getIssues(req, res, next) {
       date: issue.observed_date ? `${issue.observed_date} · ${issue.observed_time || ''}`.trim() : new Date(issue.created_at).toLocaleDateString(),
       support: issue.support_count,
       comments: issue.comments_count,
-      reporter: issue.reporter?.name || 'Community member',
-      reporterDetails: issue.reporter,
+      reporter: reporterById.get(issue.reporter_id)?.name || 'Community member',
+      reporterDetails: reporterById.get(issue.reporter_id) || null,
       image: issue.media_url,
       attachment: issue.media_url,
       attachmentName: issue.attachment_name,
@@ -96,7 +125,10 @@ export async function createIssue(req, res, next) {
         .single();
 
       if (error) return sendError(res, error.message, 500);
-      return sendSuccess(res, data, 'Your confidential report was submitted privately.', null, 201);
+      const guidance = await prepareGuidance(data, false);
+      const message = guidanceMessage(guidance);
+      await createNotification({ userId, title: `Guidance for your ${guidance.issue_classification || 'issue'} report`, body: message, link: '/issues' });
+      return sendSuccess(res, { ...data, guidance }, 'Your confidential report was submitted privately. Guidance has been sent to you.', null, 201);
     }
 
     const { data: issue, error } = await supabase
@@ -124,14 +156,19 @@ export async function createIssue(req, res, next) {
     if (error) return sendError(res, error.message, 500);
 
     // Initial status history entry
-    await supabase.from('issue_status_history').insert({
-      issue_id: issue.id,
-      actor_id: userId,
-      to_status: 'Submitted',
-      note: 'Issue reported to KyU Community.',
-    }).catch(() => null);
+    try {
+      await supabase.from('issue_status_history').insert({
+        issue_id: issue.id,
+        actor_id: userId,
+        to_status: 'Submitted',
+        note: 'Issue reported to KyU Community.',
+      });
+    } catch {}
 
-    return sendSuccess(res, issue, 'Your community report was submitted.', null, 201);
+    const guidance = await prepareGuidance(issue, true);
+    const message = guidanceMessage(guidance);
+    await createNotification({ userId, title: `Guidance for your ${guidance.issue_classification || 'issue'} report`, body: message, link: '/issues' });
+    return sendSuccess(res, { ...issue, guidance }, 'Your community report was submitted and private guidance was sent to you.', null, 201);
   } catch (err) {
     return next(err);
   }

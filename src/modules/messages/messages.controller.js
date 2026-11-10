@@ -137,12 +137,13 @@ export async function getMessages(req, res, next) {
     if (error) return sendError(res, error.message, 500);
 
     // Mark as read
-    await supabase
-      .from('conversation_members')
-      .update({ last_read_at: new Date().toISOString() })
-      .eq('conversation_id', convId)
-      .eq('user_id', userId)
-      .catch(() => null);
+    try {
+      await supabase
+        .from('conversation_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', convId)
+        .eq('user_id', userId);
+    } catch {}
 
     return sendSuccess(res, messages || [], 'Messages retrieved.');
   } catch (err) {

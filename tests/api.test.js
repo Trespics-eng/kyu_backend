@@ -59,5 +59,17 @@ describe('KyU Connect API Endpoints', () => {
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
+
+  it('POST /api/v1/auth/admin-register validates admin email and password length', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/admin-register')
+      .send({
+        email: 'notanemail',
+        password: 'short',
+        name: 'A',
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
 });
 

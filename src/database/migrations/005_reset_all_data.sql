@@ -38,3 +38,7 @@ TRUNCATE TABLE
     profiles
 CASCADE;
 
+-- To also delete all Supabase authentication accounts when resetting:
+DELETE FROM auth.users;
+
+

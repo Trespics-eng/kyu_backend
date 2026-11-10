@@ -29,6 +29,11 @@ async function runMigrations() {
       path.join(__dirname, 'migrations', '002_rls_policies.sql'),
       path.join(__dirname, 'migrations', '003_storage_buckets.sql'),
       path.join(__dirname, 'migrations', '004_triggers_indexes.sql'),
+      path.join(__dirname, 'migrations', '006_ai_agent_schema.sql'),
+      path.join(__dirname, 'migrations', '007_gemini_ai_model.sql'),
+      path.join(__dirname, 'migrations', '008_ai_provider_selection.sql'),
+      path.join(__dirname, 'migrations', '009_communities_links_and_seed.sql'),
+      path.join(__dirname, 'migrations', '010_grant_permissions.sql'),
       path.join(__dirname, 'seeds', '001_seed_dev_data.sql'),
     ];
 

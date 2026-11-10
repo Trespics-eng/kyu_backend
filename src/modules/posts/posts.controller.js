@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '../../config/supabase.js';
 import { sendSuccess, sendError } from '../../utils/response.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
+import { getPostsFromMemoryStore, addPostToMemoryStore } from './posts.store.js';
 
 export async function getPosts(req, res, next) {
   try {
@@ -12,7 +13,7 @@ export async function getPosts(req, res, next) {
       .from('posts')
       .select(`
         *,
-        author:profiles(id, name, role, department, verified, initials, color, avatar_url)
+        author:profiles!author_id(id, name, role, department, verified, initials, color, avatar_url)
       `)
       .eq('status', 'active');
 
@@ -33,7 +34,12 @@ export async function getPosts(req, res, next) {
     query = query.limit(limit + 1);
 
     const { data: rawPosts, error } = await query;
-    if (error) return sendError(res, error.message, 500);
+
+    // If DB returns an error (e.g. RLS/permission not configured yet), serve from memory store
+    if (error) {
+      const memPosts = getPostsFromMemoryStore(category, limit);
+      return sendSuccess(res, memPosts, 'Posts retrieved.', { hasMore: false, nextCursor: null });
+    }
 
     const { data: posts, meta } = buildPaginationMeta(rawPosts || [], limit);
 
@@ -47,7 +53,7 @@ export async function getPosts(req, res, next) {
         const [likesRes, bookmarksRes] = await Promise.all([
           supabase.from('post_reactions').select('post_id').eq('user_id', req.user.id).in('post_id', postIds),
           supabase.from('post_bookmarks').select('post_id').eq('user_id', req.user.id).in('post_id', postIds),
-        ]);
+        ]).catch(() => [{ data: [] }, { data: [] }]);
         likedPostIds = new Set((likesRes.data || []).map((r) => r.post_id));
         bookmarkedPostIds = new Set((bookmarksRes.data || []).map((b) => b.post_id));
       }
@@ -68,6 +74,11 @@ export async function getPosts(req, res, next) {
       createdAt: post.created_at,
     }));
 
+    // Also keep memory store warm with the latest DB posts
+    for (const p of formattedPosts) {
+      addPostToMemoryStore(p);
+    }
+
     return sendSuccess(res, formattedPosts, 'Posts retrieved successfully.', meta);
   } catch (err) {
     return next(err);
@@ -77,7 +88,8 @@ export async function getPosts(req, res, next) {
 export async function createPost(req, res, next) {
   try {
     const authorId = req.user.id;
-    const { body, category, type, media_url, media_type } = req.body;
+    const { category, type, media_url, media_type } = req.body;
+    const body = String(req.body.body || '').trim() || (type === 'Video' ? 'Shared a video.' : 'Shared an image.');
     const supabase = getSupabaseAdmin();
 
     const { data: post, error } = await supabase
@@ -92,7 +104,7 @@ export async function createPost(req, res, next) {
       })
       .select(`
         *,
-        author:profiles(id, name, role, department, verified, initials, color, avatar_url)
+        author:profiles!author_id(id, name, role, department, verified, initials, color, avatar_url)
       `)
       .single();
 
@@ -114,7 +126,7 @@ export async function getPostById(req, res, next) {
         .from('posts')
         .select(`
           *,
-          author:profiles(id, name, role, department, verified, initials, color, avatar_url)
+          author:profiles!author_id(id, name, role, department, verified, initials, color, avatar_url)
         `)
         .eq('id', id)
         .single(),

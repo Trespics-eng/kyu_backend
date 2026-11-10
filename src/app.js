@@ -2,12 +2,17 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { corsMiddleware } from './config/cors.js';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { requestLogger } from './middleware/requestLogger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Route modules
 import healthRoutes from './modules/health/health.routes.js';
@@ -27,6 +32,7 @@ import notificationsRoutes from './modules/notifications/notifications.routes.js
 import searchRoutes from './modules/search/search.routes.js';
 import uploadsRoutes from './modules/uploads/uploads.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import aiRoutes from './modules/ai/ai.routes.js';
 
 export const app = express();
 
@@ -39,6 +45,7 @@ app.use(compression());
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: false, limit: '5mb' }));
 app.use(cookieParser());
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/api', apiRateLimiter);
 
 // Root
@@ -62,6 +69,7 @@ app.use('/api/v1/notifications', notificationsRoutes);
 app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/uploads', uploadsRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Error handling
 app.use(notFound);
